@@ -6,7 +6,6 @@ import (
 	"gatorcli/internal/database"
 	"github.com/google/uuid"
 	"internal/config"
-	"os"
 	"time"
 )
 
@@ -43,14 +42,13 @@ func (c *commands) run(s *state, cmd command) error {
 }
 
 func handlerLogin(s *state, cmd command) error {
-	if len(cmd.args) < 1 {
+	if len(cmd.args) == 0 {
 		return fmt.Errorf("Need to provide a username for login")
 	}
 	username := cmd.args[0]
 	_, err := s.db.GetUser(context.Background(), username)
 	if err != nil {
-		fmt.Printf("User '%s' does not exist!\n", username)
-		os.Exit(1)
+		return fmt.Errorf("User '%s' does not exist!\n", username)
 	}
 	err = config.SetUser(*s.cfg, username)
 	if err != nil {
@@ -61,15 +59,14 @@ func handlerLogin(s *state, cmd command) error {
 }
 
 func handlerRegister(s *state, cmd command) error {
-	if len(cmd.args) < 1 {
+	if len(cmd.args) == 0 {
 		return fmt.Errorf("Need to provide a username to register")
 	}
 	username := cmd.args[0]
 
 	_, err := s.db.GetUser(context.Background(), username)
 	if err == nil {
-		fmt.Printf("A user with the name '%s' already exists", username)
-		os.Exit(1)
+		return fmt.Errorf("A user with the name '%s' already exists", username)
 	}
 
 	tempUser := database.CreateUserParams{
@@ -80,11 +77,33 @@ func handlerRegister(s *state, cmd command) error {
 	}
 	usr, err := s.db.CreateUser(context.Background(), tempUser)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 	config.SetUser(*s.cfg, username)
 	fmt.Println("The user has been successfuly registered")
 	fmt.Printf("%s: %s\n", usr.CreatedAt.String(), usr.Name)
+	return nil
+}
+
+func handlerReset(s *state, cmd command) error {
+	err := s.db.ResetUsers(context.Background())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func handlerUsers(s *state, cmd command) error {
+	users, err := s.db.GetUsers(context.Background())
+	if err != nil {
+		return err
+	}
+	for _, u := range users {
+		if u.Name == s.cfg.CurrentUserName {
+			fmt.Printf("* %s (current)\n", u.Name)
+		} else {
+			fmt.Printf("* %s\n", u.Name)
+		}
+	}
 	return nil
 }

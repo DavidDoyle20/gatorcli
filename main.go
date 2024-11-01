@@ -34,14 +34,27 @@ func main() {
 	// Register new commands here
 	cmds.register("login", handlerLogin)
 	cmds.register("register", handlerRegister)
+	cmds.register("reset", handlerReset)
+	cmds.register("users", handlerUsers)
 
 	args := os.Args
-	if len(args) < 3 {
-		fmt.Println("Must have more than 2 arguments")
+	var cmd command
+
+	if len(args) == 1 {
+		// Do nothing, no command given
+		os.Exit(0)
+	}
+	if len(args) == 2 {
+		// No arguments other than the name given
+		cmd.name = args[1]
+	} else {
+		cmd.name = args[1]
+		cmd.args = args[2:]
+	}
+
+	err = cmds.run(&currentState, cmd)
+	if err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
-	var cmd command
-	cmd.name = args[1]
-	cmd.args = args[2:]
-	cmds.run(&currentState, cmd)
 }

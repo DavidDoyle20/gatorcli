@@ -6,6 +6,7 @@ import (
 	"gatorcli/internal/database"
 	"github.com/google/uuid"
 	"internal/config"
+	"internal/rss"
 	"time"
 )
 
@@ -21,6 +22,29 @@ type command struct {
 
 type commands struct {
 	cmdToFunction map[string]func(*state, command) error
+}
+
+func scrapeFeeds(s *state) error {
+	//get next feed from db
+	next_feed, err := s.db.GetNextFeedToFetch(context.Background())
+	if err != nil {
+		return err
+	}
+	//mark it as fetched
+	err = s.db.MarkFeedFetched(context.Background(), next_feed.ID)
+	if err != nil {
+		return err
+	}
+	//fetch the feed using the url
+	feed, err := rss.FetchFeed(context.Background(), next_feed.Url)
+	if err != nil {
+		return err
+	}
+	//iterate over the items in the feed and print their titles to the console
+	for _, item := range feed.Channel.Item {
+		fmt.Printf("* %s\n", item.Title)
+	}
+	return nil
 }
 
 // registers a new handler function to a command name
@@ -39,6 +63,16 @@ func (c *commands) run(s *state, cmd command) error {
 		return err
 	}
 	return nil
+}
+
+func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
+	return func(s *state, cmd command) error {
+		current_user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+		if err != nil {
+			return err
+		}
+		return handler(s, cmd, current_user)
+	}
 }
 
 func handlerLogin(s *state, cmd command) error {
@@ -104,6 +138,120 @@ func handlerUsers(s *state, cmd command) error {
 		} else {
 			fmt.Printf("* %s\n", u.Name)
 		}
+	}
+	return nil
+}
+
+// takes a single parameter
+func handlerAgg(s *state, cmd command) error {
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("Not enough args provided")
+	}
+	timeBetweenRequests, err := time.ParseDuration(cmd.args[0])
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Collecting feeds every %s\n", timeBetweenRequests.String())
+
+	ticker := time.NewTicker(timeBetweenRequests)
+	for ; ; <-ticker.C {
+		scrapeFeeds(s)
+	}
+	return nil
+}
+
+// Takes a name and a url
+func handlerAddFeed(s *state, cmd command, user database.User) error {
+	if len(cmd.args) < 2 {
+		return fmt.Errorf("Not enough args provided")
+	}
+
+	name := cmd.args[0]
+	url := cmd.args[1]
+
+	feed := database.CreateFeedParams{
+		ID:     uuid.New(),
+		Name:   name,
+		Url:    url,
+		UserID: user.ID,
+	}
+	new_feed, err := s.db.CreateFeed(context.Background(), feed)
+	if err != nil {
+		return err
+	}
+
+	feed_follows := database.CreateFeedFollowParams{
+		ID:     uuid.New(),
+		UserID: user.ID,
+		FeedID: new_feed.ID,
+	}
+
+	_, err = s.db.CreateFeedFollow(context.Background(), feed_follows)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(feed)
+	return nil
+}
+
+func handlerFeeds(s *state, cmd command) error {
+	feedsUsers, err := s.db.GetFeedUsers(context.Background())
+	if err != nil {
+		return err
+	}
+	for _, f := range feedsUsers {
+		fmt.Printf("* %s %s %s\n", f.Name, f.Url, f.UserName.String)
+	}
+	return nil
+}
+
+func handlerFollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("Not enough args provided")
+	}
+
+	url := cmd.args[0]
+	feed, err := s.db.GetFeedByUrl(context.Background(), url)
+	if err != nil {
+		return err
+	}
+
+	feed_follows := database.CreateFeedFollowParams{
+		ID:     uuid.New(),
+		UserID: user.ID,
+		FeedID: feed.ID,
+	}
+
+	feed_follow_row, err := s.db.CreateFeedFollow(context.Background(), feed_follows)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Feed: %s User: %s\n", feed_follow_row.FeedName, feed_follow_row.UserName)
+	return nil
+}
+
+func handlerFollowing(s *state, cmd command, user database.User) error {
+	following_feeds, err := s.db.GetFeedsByUser(context.Background(), user.ID)
+	if err != nil {
+		return err
+	}
+	for _, feed := range following_feeds {
+		fmt.Printf("* %s %s\n", feed.Name, feed.Url)
+	}
+	return nil
+}
+
+func handlerUnfollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("Not enough args provided")
+	}
+
+	url := cmd.args[0]
+	err := s.db.DeleteFeedFollowRecord(context.Background(), database.DeleteFeedFollowRecordParams{user.ID, url})
+	if err != nil {
+		return err
 	}
 	return nil
 }

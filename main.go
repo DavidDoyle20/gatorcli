@@ -3,8 +3,8 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"gatorcli/internal/config"
 	"gatorcli/internal/database"
-	"internal/config"
 	"os"
 
 	_ "github.com/lib/pq"

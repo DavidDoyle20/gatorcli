@@ -2,12 +2,17 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"gatorcli/internal/database"
-	"github.com/google/uuid"
 	"internal/config"
 	"internal/rss"
+	"strconv"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type state struct {
@@ -36,14 +41,40 @@ func scrapeFeeds(s *state) error {
 		return err
 	}
 	//fetch the feed using the url
+	//feed, err := s.db.GetFeedByUrl(context.Background(), next_feed.Url)
 	feed, err := rss.FetchFeed(context.Background(), next_feed.Url)
 	if err != nil {
 		return err
 	}
+
 	//iterate over the items in the feed and print their titles to the console
 	for _, item := range feed.Channel.Item {
-		fmt.Printf("* %s\n", item.Title)
+		post := database.CreatePostParams{
+			ID:          uuid.New(),
+			Title:       item.Title,
+			Url:         item.Link,
+			Description: sql.NullString{String: item.Description, Valid: true},
+			PublishedAt: time.Now(),
+			FeedID:      next_feed.ID,
+		}
+		/*
+			fmt.Println("*------------")
+			fmt.Printf("| %s \n", post.Title)
+			fmt.Printf("| %s \n", post.Url)
+			fmt.Printf("| %s \n", post.Description.String)
+			fmt.Println("*------------")
+		*/
+		stuff, err := s.db.CreatePost(context.Background(), post)
+		if err != nil {
+			var e *pq.Error
+			if errors.As(err, &e) && e.Code.Name() != "unique_violation" {
+				fmt.Printf("%s \n", e.Code.Name())
+			}
+		} else {
+			fmt.Printf("* %s\n", stuff.Title)
+		}
 	}
+	fmt.Println("Fetched All Feeds")
 	return nil
 }
 
@@ -170,10 +201,11 @@ func handlerAddFeed(s *state, cmd command, user database.User) error {
 	url := cmd.args[1]
 
 	feed := database.CreateFeedParams{
-		ID:     uuid.New(),
-		Name:   name,
-		Url:    url,
-		UserID: user.ID,
+		ID:        uuid.New(),
+		Name:      name,
+		Url:       url,
+		UserID:    user.ID,
+		CreatedAt: time.Now(),
 	}
 	new_feed, err := s.db.CreateFeed(context.Background(), feed)
 	if err != nil {
@@ -252,6 +284,28 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 	err := s.db.DeleteFeedFollowRecord(context.Background(), database.DeleteFeedFollowRecordParams{user.ID, url})
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func handlerBrowse(s *state, cmd command, user database.User) error {
+	limit := 2
+	if len(cmd.args) >= 1 {
+		var err error
+		limit, err = strconv.Atoi(cmd.args[0])
+		if err != nil {
+			return err
+		}
+	}
+	posts, err := s.db.GetPostsFromUser(context.Background(), database.GetPostsFromUserParams{
+		UserID: user.ID,
+		Limit:  int32(limit),
+	})
+	if err != nil {
+		return err
+	}
+	for _, post := range posts {
+		fmt.Printf("* %s\n", post.Title)
 	}
 	return nil
 }

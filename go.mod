@@ -1,4 +1,4 @@
-module gatorcli
+module github.com/DavidDoyle20/gatorcli
 
 go 1.23.2
 

@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"gatorcli/internal/config"
-	"gatorcli/internal/database"
-	"gatorcli/internal/rss"
+	"github.com/DavidDoyle20/gatorcli/internal/config"
+	"github.com/DavidDoyle20/gatorcli/internal/database"
+	"github.com/DavidDoyle20/gatorcli/internal/rss"
 	"strconv"
 	"time"
 

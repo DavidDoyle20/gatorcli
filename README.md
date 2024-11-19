@@ -10,9 +10,9 @@
     * Linux / WSL (Debian): `sudo apt install postgresql postgresql-contrib`
 * Open the cli of your choice and enter the command `go install github.com/DavidDoyle20/gatorcli@latest`
 * Set the dburl
-        * Replace the url with your connection string
-        * Mac OS: `gatorcli dburl postgres://postgres:@localhost:5432/gator`
-        * Linux: `gatorcli dburl postgres://postgres:postgres@localhost:5432/gator`
+    * Replace the url with your connection string
+    * Mac OS: `gatorcli dburl postgres://postgres:@localhost:5432/gator`
+    * Linux: `gatorcli dburl postgres://postgres:postgres@localhost:5432/gator`
 
 # Commands
 ---

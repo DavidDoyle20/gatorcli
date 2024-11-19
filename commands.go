@@ -29,55 +29,6 @@ type commands struct {
 	cmdToFunction map[string]func(*state, command) error
 }
 
-func scrapeFeeds(s *state) error {
-	//get next feed from db
-	next_feed, err := s.db.GetNextFeedToFetch(context.Background())
-	if err != nil {
-		return err
-	}
-	//mark it as fetched
-	err = s.db.MarkFeedFetched(context.Background(), next_feed.ID)
-	if err != nil {
-		return err
-	}
-	//fetch the feed using the url
-	//feed, err := s.db.GetFeedByUrl(context.Background(), next_feed.Url)
-	feed, err := rss.FetchFeed(context.Background(), next_feed.Url)
-	if err != nil {
-		return err
-	}
-
-	//iterate over the items in the feed and print their titles to the console
-	for _, item := range feed.Channel.Item {
-		post := database.CreatePostParams{
-			ID:          uuid.New(),
-			Title:       item.Title,
-			Url:         item.Link,
-			Description: sql.NullString{String: item.Description, Valid: true},
-			PublishedAt: time.Now(),
-			FeedID:      next_feed.ID,
-		}
-		/*
-			fmt.Println("*------------")
-			fmt.Printf("| %s \n", post.Title)
-			fmt.Printf("| %s \n", post.Url)
-			fmt.Printf("| %s \n", post.Description.String)
-			fmt.Println("*------------")
-		*/
-		stuff, err := s.db.CreatePost(context.Background(), post)
-		if err != nil {
-			var e *pq.Error
-			if errors.As(err, &e) && e.Code.Name() != "unique_violation" {
-				fmt.Printf("%s \n", e.Code.Name())
-			}
-		} else {
-			fmt.Printf("* %s\n", stuff.Title)
-		}
-	}
-	fmt.Println("Fetched All Feeds")
-	return nil
-}
-
 // registers a new handler function to a command name
 func (c *commands) register(name string, f func(*state, command) error) {
 	c.cmdToFunction[name] = f
@@ -188,6 +139,47 @@ func handlerAgg(s *state, cmd command) error {
 	for ; ; <-ticker.C {
 		scrapeFeeds(s)
 	}
+}
+
+func scrapeFeeds(s *state) error {
+	//get next feed from db
+	next_feed, err := s.db.GetNextFeedToFetch(context.Background())
+	if err != nil {
+		return err
+	}
+	//mark it as fetched
+	err = s.db.MarkFeedFetched(context.Background(), next_feed.ID)
+	if err != nil {
+		return err
+	}
+	//fetch the feed using the url
+	feed, err := rss.FetchFeed(context.Background(), next_feed.Url)
+	if err != nil {
+		return err
+	}
+
+	//iterate over the items in the feed and print their titles to the console
+	for _, item := range feed.Channel.Item {
+		post := database.CreatePostParams{
+			ID:          uuid.New(),
+			Title:       item.Title,
+			Url:         item.Link,
+			Description: sql.NullString{String: item.Description, Valid: true},
+			PublishedAt: time.Now(),
+			FeedID:      next_feed.ID,
+		}
+		stuff, err := s.db.CreatePost(context.Background(), post)
+		if err != nil {
+			var e *pq.Error
+			if errors.As(err, &e) && e.Code.Name() != "unique_violation" {
+				fmt.Printf("%s \n", e.Code.Name())
+			}
+		} else {
+			fmt.Printf("* %s\n", stuff.Title)
+		}
+	}
+	fmt.Println("Fetched All Feeds")
+	return nil
 }
 
 // Takes a name and a url

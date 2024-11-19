@@ -12,7 +12,12 @@ import (
 
 func main() {
 	//Read config
-	cfg, _ := config.Read()
+	cfg, err := config.Read()
+	// if this fails we need to make a config file and prompt the user for their db url
+	if err != nil {
+		// Mac OS (no password or username): postgres://david:@localhost:5432/gator
+		// Linux & Windows: postgres://postgres:postgres@localhost:5432/gator
+	}
 
 	// Open connection with database
 	db, err := sql.Open("postgres", cfg.DbURL)
@@ -43,6 +48,7 @@ func main() {
 	cmds.register("following", middlewareLoggedIn(handlerFollowing))
 	cmds.register("unfollow", middlewareLoggedIn(handlerUnfollow))
 	cmds.register("browse", middlewareLoggedIn(handlerBrowse))
+	cmds.register("dburl", handlerDb)
 
 	args := os.Args
 	var cmd command

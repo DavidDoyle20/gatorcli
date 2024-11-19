@@ -39,6 +39,15 @@ func SetUser(cfg Config, username string) error {
 	return nil
 }
 
+func SetDB(cfg Config, db_url string) error {
+	cfg.DbURL = db_url
+	err := write(cfg)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func getConfigFilePath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -57,6 +66,23 @@ func write(cfg Config) error {
 		return err
 	}
 	err = os.WriteFile(path, data, 0666)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func CreateConfigFile() error {
+	path, err := getConfigFilePath()
+	if err != nil {
+		return err
+	}
+	_, err = os.Stat(path)
+	// file exists. do nothing
+	if err == nil {
+		return nil
+	}
+	_, err = os.Create(path)
 	if err != nil {
 		return err
 	}

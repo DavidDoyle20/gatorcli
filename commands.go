@@ -87,7 +87,7 @@ func (c *commands) register(name string, f func(*state, command) error) {
 func (c *commands) run(s *state, cmd command) error {
 	f, ok := c.cmdToFunction[cmd.name]
 	if !ok {
-		return fmt.Errorf("Command not found")
+		return fmt.Errorf("command not found")
 	}
 	err := f(s, cmd)
 	if err != nil {
@@ -108,12 +108,12 @@ func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) 
 
 func handlerLogin(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
-		return fmt.Errorf("Need to provide a username for login")
+		return fmt.Errorf("need to provide a username for login")
 	}
 	username := cmd.args[0]
 	_, err := s.db.GetUser(context.Background(), username)
 	if err != nil {
-		return fmt.Errorf("User '%s' does not exist!\n", username)
+		return fmt.Errorf("user '%s' does not exist", username)
 	}
 	err = config.SetUser(*s.cfg, username)
 	if err != nil {
@@ -125,13 +125,13 @@ func handlerLogin(s *state, cmd command) error {
 
 func handlerRegister(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
-		return fmt.Errorf("Need to provide a username to register")
+		return fmt.Errorf("need to provide a username to register")
 	}
 	username := cmd.args[0]
 
 	_, err := s.db.GetUser(context.Background(), username)
 	if err == nil {
-		return fmt.Errorf("A user with the name '%s' already exists", username)
+		return fmt.Errorf("a user with the name '%s' already exists", username)
 	}
 
 	tempUser := database.CreateUserParams{
@@ -176,7 +176,7 @@ func handlerUsers(s *state, cmd command) error {
 // takes a single parameter
 func handlerAgg(s *state, cmd command) error {
 	if len(cmd.args) < 1 {
-		return fmt.Errorf("Not enough args provided")
+		return fmt.Errorf("not enough args provided")
 	}
 	timeBetweenRequests, err := time.ParseDuration(cmd.args[0])
 	if err != nil {
@@ -188,13 +188,12 @@ func handlerAgg(s *state, cmd command) error {
 	for ; ; <-ticker.C {
 		scrapeFeeds(s)
 	}
-	return nil
 }
 
 // Takes a name and a url
 func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 2 {
-		return fmt.Errorf("Not enough args provided")
+		return fmt.Errorf("not enough args provided")
 	}
 
 	name := cmd.args[0]
@@ -240,7 +239,7 @@ func handlerFeeds(s *state, cmd command) error {
 
 func handlerFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 1 {
-		return fmt.Errorf("Not enough args provided")
+		return fmt.Errorf("not enough args provided")
 	}
 
 	url := cmd.args[0]
@@ -277,7 +276,7 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 
 func handlerUnfollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 1 {
-		return fmt.Errorf("Not enough args provided")
+		return fmt.Errorf("not enough args provided")
 	}
 
 	url := cmd.args[0]
@@ -307,5 +306,27 @@ func handlerBrowse(s *state, cmd command, user database.User) error {
 	for _, post := range posts {
 		fmt.Printf("* %s\n", post.Title)
 	}
+	return nil
+}
+
+func handlerDb(s *state, cmd command) error {
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("not enough args provided")
+	}
+	db_url := cmd.args[0]
+
+	// creates the config file if it doesnt exits and does nothing if it does
+	err := config.CreateConfigFile()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// updates the config file with the new url
+	var cfg config.Config
+	err = config.SetDB(cfg, db_url)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
